@@ -1,0 +1,114 @@
+http_port 3128
+visible_hostname NETSERV1
+
+cache_mem 64 MB # Tamanho da memoria RAM para cache
+maximum_object_size_in_memory 64 KB # Tamanho maximo do arquivo q ficara em cache na RAM
+maximum_object_size 512 MB # Tamanho maximo do arquivo q ficara em cache no HD
+minimum_object_size 0 KB 
+request_body_max_size 0 MB
+cache_swap_low 90 # O cache eliberado ate ficar com 90% da capacidade
+cache_swap_high 95 # quando o cache atigir 95% ele liberara ate chegar em swap_low
+cache_dir ufs /var/spool/squid 2048 16 256
+cache_access_log /var/log/squid/access.log 
+
+acl all src all
+acl manager proto cache_object
+acl localhost src 127.0.0.1/32
+acl to_localhost dst 127.0.0.0/8 0.0.0.0/32
+acl localnet src 10.0.0.0/8	# RFC1918 possible internal network
+acl localnet src 172.16.0.0/12	# RFC1918 possible internal network
+acl localnet src 192.168.0.0/16	# RFC1918 possible internal network
+
+acl SSL_ports port 443		# https
+acl SSL_ports port 563		# snews
+acl SSL_ports port 873		# rsync
+acl Safe_ports port 80		# http
+acl Safe_ports port 21		# ftp
+acl Safe_ports port 70		# gopher
+acl Safe_ports port 210		# wais
+acl Safe_ports port 1025-65535	# unregistered ports
+acl Safe_ports port 280		# http-mgmt
+acl Safe_ports port 488		# gss-http
+acl Safe_ports port 591		# filemaker
+acl Safe_ports port 777		# multiling http
+acl Safe_ports port 631		# cups
+acl Safe_ports port 873		# rsync
+acl Safe_ports port 901		# SWAT
+acl Safe_ports port 25		# SMTP
+acl Safe_ports port 110		# POP3
+
+acl purge method PURGE
+acl CONNECT method CONNECT
+
+# Iniciando modulo de autenticacao
+
+auth_param basic program /usr/lib/squid/ncsa_auth /etc/squid/passwd
+auth_param basic children 5
+auth_param basic realm Digite seu Login
+
+# Fim do modulo de autenticacao
+redirect_program /usr/bin/squidGuard -c /etc/squid/squidGuard.conf
+
+
+#acls criadas por mim
+acl redelocal src 192.168.1.0/24
+acl usuarios proxy_auth REQUIRED
+acl diretoria proxy_auth "/etc/squid/users/diretoria.acl"
+acl adm_livre proxy_auth "/etc/squid/users/adm-livre.acl"
+acl adm_restrito proxy_auth "/etc/squid/users/adm-restrito.acl"
+acl professor proxy_auth "/etc/squid/users/professores.acl"
+acl outros proxy_auth "/etc/squid/users/outros.acl"
+
+# Acls de bloqueio
+acl bloqueados url_regex -i "/etc/squid/bloqueados/palavras"
+
+#fim de acls definidas por mim
+
+# Limitando banda
+delay_pools 4
+
+delay_class 1 2
+delay_parameters 1 -1/-1 -1/-1
+delay_access 1 allow diretoria adm_livre
+
+delay_class 2 2
+delay_parameters 2 32000/32000 32000/32000
+delay_access 2 allow adm_restrito
+
+delay_class 3 2
+delay_parameters 3 50000/50000 50000/50000
+delay_access 3 allow professor
+
+delay_class 4 2
+delay_parameters 3 20000/20000 20000/20000
+delay_access 4 allow outros
+
+# Fim de limitacao de banda
+
+http_access allow manager localhost
+http_access deny manager
+http_access allow purge localhost
+http_access deny purge !Safe_ports
+http_access deny CONNECT !SSL_ports
+
+# acessos definidos por mim
+#http_access deny bloqueados
+http_access allow diretoria adm_livre adm_restrito professor outros usuarios
+http_access allow redelocal
+# Fim de acesso definidos por mim
+http_access allow localhost
+http_access deny all
+
+refresh_pattern ^ftp:		1440	20%	10080
+refresh_pattern ^gopher:	1440	0%	1440
+refresh_pattern -i (/cgi-bin/|\?) 0	0%	0
+refresh_pattern (Release|Package(.gz)*)$	0	20%	2880
+refresh_pattern .		0	20%	4320
+
+acl shoutcast rep_header X-HTTP09-First-Line ^ICY.[0-9]
+upgrade_http0.9 deny shoutcast
+acl apache rep_header Server ^Apache
+broken_vary_encoding allow apache
+extension_methods REPORT MERGE MKACTIVITY CHECKOUT
+hosts_file /etc/hosts
+coredump_dir /var/spool/squid
