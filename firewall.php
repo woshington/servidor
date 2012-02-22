@@ -3,6 +3,7 @@
 	 * Para funcionar executar o seguinte comando como superusuario 
 	 * mkdir /etc/init.d/firewall
 	 * chown www-data:www-data /etc/init.d/firewall/firewall
+	 * apt-get install dos2unix
 	 */
 	require_once 'configs/smarty.config.php';
 	
@@ -18,10 +19,11 @@
 			}			
 			$smarty->assign("firewall", $firewall);
 		}elseif($valor=="salvar"){
-			$txtFirewall = $_POST["textFirewall"];
-			 $file = fopen($filename, "w+");
-					fwrite($file, $txtFirewall);
+			$txtFirewall = $_POST["textFirewall"];			
+			$file = fopen($filename, "w+");
+				fwrite($file, $txtFirewall);
 			fclose($file);
+			system("dos2unix /etc/init.d/firewall/firewall"); // Convertendo o arquivo em formato unix			
 			header('Location: firewall.php?op=file&valor=editar');
 		}elseif($valor=="padrao"){
 			$file = fopen($filename, "w+");
